@@ -54,8 +54,8 @@ This workflow supports **coaches, athletes, and researchers** in analyzing paddl
 
 1. **Clone repository**
 ```bash
-git clone https://github.com/linyh212/capstone-project.git
-cd ~/capstone-project
+git clone https://github.com/linyh212/mmpose.git
+cd ~/mmpose
 ```
 
 2. **Prepare dataset**
