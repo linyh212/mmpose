@@ -63,7 +63,7 @@ cd ~/mmpose
 mkdir videos
 ```
     •	Place videos into videos/
-    •	Frames will be automatically extracted and copied to dataset/images/.
+    •	Frames will be automatically extracted and copied to data/dataset/images/.
 
 3. **Install dependencies and start `video to 2D` process**
 ```bash
