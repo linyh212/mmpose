@@ -88,7 +88,11 @@ model = dict(
     ))
 
 # base dataset settings
-data_root = 'data/coco/'
+#data_root = 'data/coco/'
+#dataset_type = 'CocoDataset'
+#data_mode = 'topdown'
+
+data_root = 'data/dataset/'
 dataset_type = 'CocoDataset'
 data_mode = 'topdown'
 
@@ -120,8 +124,10 @@ train_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_mode=data_mode,
-        ann_file='annotations/person_keypoints_train2017.json',
-        data_prefix=dict(img='train2017/'),
+        #ann_file='annotations/person_keypoints_train2017.json',
+        #data_prefix=dict(img='train2017/'),
+        ann_file='annotations/train.json',
+        data_prefix=dict(img='images/'),
         pipeline=train_pipeline,
     ))
 val_dataloader = dict(
@@ -134,17 +140,22 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_mode=data_mode,
-        ann_file='annotations/person_keypoints_val2017.json',
-        bbox_file='data/coco/person_detection_results/'
-        'COCO_val2017_detections_AP_H_56_person.json',
-        data_prefix=dict(img='val2017/'),
+        #ann_file='annotations/person_keypoints_val2017.json',
+        #bbox_file='data/coco/person_detection_results/COCO_val2017_detections_AP_H_56_person.json',
+        #data_prefix=dict(img='val2017/'),
+        ann_file='annotations/val.json',
+        data_prefix=dict(img='images/'),
         test_mode=True,
         pipeline=val_pipeline,
     ))
 test_dataloader = val_dataloader
 
 # evaluators
+#val_evaluator = dict(
+#    type='CocoMetric',
+#    ann_file=data_root + 'annotations/person_keypoints_val2017.json')
+#test_evaluator = val_evaluator
+
 val_evaluator = dict(
     type='CocoMetric',
-    ann_file=data_root + 'annotations/person_keypoints_val2017.json')
-test_evaluator = val_evaluator
+    ann_file=data_root + 'annotations/val.json')

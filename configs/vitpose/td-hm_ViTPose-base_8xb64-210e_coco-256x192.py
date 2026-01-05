@@ -1,11 +1,11 @@
-_base_ = ['../_base_/default_runtime.py']
+_base_ = ['_base_/default_runtime.py']
 
 # runtime
 train_cfg = dict(max_epochs=210, val_interval=10)
 
 # optimizer
 custom_imports = dict(
-    imports=['mmpose.engine.optim_wrappers.layer_decay_optim_wrapper'],
+    imports=['mmpose.engine.optim_wrappers.layer_decay_optim_wrapper', 'mmpretrain'],
     allow_failed_imports=False)
 
 optim_wrapper = dict(
@@ -135,8 +135,7 @@ val_dataloader = dict(
         data_root=data_root,
         data_mode=data_mode,
         ann_file='annotations/person_keypoints_val2017.json',
-        bbox_file='data/coco/person_detection_results/'
-        'COCO_val2017_detections_AP_H_56_person.json',
+        bbox_file='data/coco/person_detection_results/COCO_val2017_detections_AP_H_56_person.json',
         data_prefix=dict(img='val2017/'),
         test_mode=True,
         pipeline=val_pipeline,
@@ -147,4 +146,4 @@ test_dataloader = val_dataloader
 val_evaluator = dict(
     type='CocoMetric',
     ann_file=data_root + 'annotations/person_keypoints_val2017.json')
-test_evaluator = val_evaluator
+test_evaluator = val_evaluatora
