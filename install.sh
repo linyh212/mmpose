@@ -16,7 +16,7 @@ WORK_DIR=work_dirs/my_vitpose_coco
 # 0. Prepare dirs
 #####################################
 mkdir -p frames data/dataset/images data/dataset/annotations
-mkdir -p skeleton_vis outputs_finetuned work_dirs
+mkdir -p skeleton_vis outputs_finetuned work_dirs outputs/vis
 
 #####################################
 # 1. Video → Frames
@@ -53,7 +53,7 @@ python3 scripts/infer_to_coco.py
 # 4. Train ViTPose
 #####################################
 echo "=== [4] Train ViTPose ==="
-python tools/train.py \
+python scripts/train.py \
   $TRAIN_CFG \
   --work-dir $WORK_DIR
 
