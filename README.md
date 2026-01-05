@@ -17,8 +17,8 @@ This workflow supports **coaches, athletes, and researchers** in analyzing paddl
 
 ## Repository Structure
 * `configs` — includings `vitpose_custom.py`
-* `scripts` — includings `draw_keypoints.py`, `infer.py`
-* `install.sh` — 
+* `scripts` — includings `infer_to_coco.py`, `draw_skeleton.py`, `trsin.py`
+* `install.sh` — full install pipelines
 
 ---
 
