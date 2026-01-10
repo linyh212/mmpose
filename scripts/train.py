@@ -1,237 +1,112 @@
-# Copyright (c) OpenMMLab. All rights reserved.
-import argparse
-import copy
+#!/usr/bin/env python3
 import os
-import os.path as osp
-import time
-import warnings
-
-import mmcv
-import torch
-import torch.distributed as dist
-# Ensure print_log is available on mmcv (some mmcv distributions expect it)
-try:
-    from mmengine.logging import print_log as _print_log
-    if not hasattr(mmcv, 'print_log'):
-        setattr(mmcv, 'print_log', _print_log)
-except Exception:
-    pass
-
-# Some mmcv installations may lack utility helpers expected by older modules
-# (e.g., TORCH_VERSION, digit_version). Provide minimal fallbacks when missing.
-try:
-    import re
-    import mmcv.utils as _mutil
-    if not hasattr(_mutil, 'TORCH_VERSION'):
-        _mutil.TORCH_VERSION = getattr(torch, '__version__', None)
-    if not hasattr(_mutil, 'digit_version'):
-        def digit_version(v):
-            # return tuple of ints extracted from version string for simple comparisons
-            nums = re.findall(r"\d+","" if v is None else str(v))
-            return tuple(int(x) for x in nums)
-        _mutil.digit_version = digit_version
-except Exception:
-    pass
-
-# Config/DictAction location changed across mmcv versions; try fallbacks
-try:
-    from mmcv import Config, DictAction
-except Exception:
-    try:
-        from mmcv.utils.config import Config, DictAction
-    except Exception:
-        try:
-            from mmcv.config import Config, DictAction
-        except Exception:
-            # Last resort: import from mmcv.utils if available
-            from mmcv.utils import Config, DictAction
-
-from mmcv.runner import get_dist_info, init_dist, set_random_seed
-from mmcv.utils import get_git_hash
-
-from mmpose import __version__
-from mmpose.apis import init_random_seed, train_model
-from mmpose.datasets import build_dataset
-from mmpose.models import build_posenet
-from mmpose.utils import collect_env, get_root_logger, setup_multi_processes
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description='Train a pose model')
-    parser.add_argument('config', help='train config file path')
-    parser.add_argument('--work-dir', help='the dir to save logs and models')
-    parser.add_argument(
-        '--resume-from', help='the checkpoint file to resume from')
-    parser.add_argument(
-        '--no-validate',
-        action='store_true',
-        help='whether not to evaluate the checkpoint during training')
-    group_gpus = parser.add_mutually_exclusive_group()
-    group_gpus.add_argument(
-        '--gpus',
-        type=int,
-        help='(Deprecated, please use --gpu-id) number of gpus to use '
-        '(only applicable to non-distributed training)')
-    group_gpus.add_argument(
-        '--gpu-ids',
-        type=int,
-        nargs='+',
-        help='(Deprecated, please use --gpu-id) ids of gpus to use '
-        '(only applicable to non-distributed training)')
-    group_gpus.add_argument(
-        '--gpu-id',
-        type=int,
-        default=0,
-        help='id of gpu to use '
-        '(only applicable to non-distributed training)')
-    parser.add_argument('--seed', type=int, default=None, help='random seed')
-    parser.add_argument(
-        '--diff_seed',
-        action='store_true',
-        help='Whether or not set different seeds for different ranks')
-    parser.add_argument(
-        '--deterministic',
-        action='store_true',
-        help='whether to set deterministic options for CUDNN backend.')
-    parser.add_argument(
-        '--cfg-options',
-        nargs='+',
-        action=DictAction,
-        default={},
-        help='override some settings in the used config, the key-value pair '
-        'in xxx=yyy format will be merged into config file. For example, '
-        "'--cfg-options model.backbone.depth=18 model.backbone.with_cp=True'")
-    parser.add_argument(
-        '--launcher',
-        choices=['none', 'pytorch', 'slurm', 'mpi'],
-        default='none',
-        help='job launcher')
-    parser.add_argument('--local_rank', type=int, default=0)
-    parser.add_argument(
-        '--autoscale-lr',
-        action='store_true',
-        help='automatically scale lr with the number of gpus')
-    args = parser.parse_args()
-    if 'LOCAL_RANK' not in os.environ:
-        os.environ['LOCAL_RANK'] = str(args.local_rank)
-
-    return args
-
+import sys
+import argparse
 
 def main():
-    args = parse_args()
-
-    cfg = Config.fromfile(args.config)
-
-    if args.cfg_options is not None:
-        cfg.merge_from_dict(args.cfg_options)
-
-    # set multi-process settings
-    setup_multi_processes(cfg)
-
-    # set cudnn_benchmark
-    if cfg.get('cudnn_benchmark', False):
-        torch.backends.cudnn.benchmark = True
-
-    # work_dir is determined in this priority: CLI > segment in file > filename
-    if args.work_dir is not None:
-        # update configs according to CLI args if args.work_dir is not None
+    parser = argparse.ArgumentParser(description='Train ViTPose model')
+    parser.add_argument('config', help='配置文件路径')
+    parser.add_argument('--work-dir', help='工作目录，用于保存日志和模型')
+    parser.add_argument('--resume', action='store_true', help='从最新检查点恢复训练')
+    parser.add_argument('--amp', action='store_true', help='使用混合精度训练')
+    parser.add_argument('--gpu-id', type=int, default=0, help='GPU ID')
+    parser.add_argument('--cfg-options', nargs='+', 
+                       help='覆盖配置文件的选项，格式为 key=value')
+    args = parser.parse_args()
+    
+    print(f"开始训练 ViTPose")
+    print(f"配置文件: {args.config}")
+    print(f"工作目录: {args.work_dir}")
+    print(f"使用 GPU: {args.gpu_id}")
+    print(f"混合精度: {args.amp}")
+    print(f"恢复训练: {args.resume}")
+    
+    # port necessary libraries
+    try:
+        from mmengine.runner import Runner
+        from mmengine.config import Config
+    except ImportError as e:
+        print(f"错误: 无法导入必要的库 - {e}")
+        print("请确保已安装 MMEngine 和 MMPose")
+        print("安装命令: pip install mmengine mmpose")
+        sys.exit(1)
+    
+    # load config file
+    try:
+        cfg = Config.fromfile(args.config)
+    except FileNotFoundError:
+        print(f"错误: 找不到配置文件 {args.config}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"错误: 加载配置文件失败 - {e}")
+        sys.exit(1)
+    
+    # set work directory
+    if args.work_dir:
         cfg.work_dir = args.work_dir
-    elif cfg.get('work_dir', None) is None:
-        # use config filename as default work_dir if cfg.work_dir is None
-        cfg.work_dir = osp.join('./work_dirs',
-                                osp.splitext(osp.basename(args.config))[0])
-    if args.resume_from is not None:
-        cfg.resume_from = args.resume_from
-    if args.gpus is not None:
-        cfg.gpu_ids = range(1)
-        warnings.warn('`--gpus` is deprecated because we only support '
-                      'single GPU mode in non-distributed training. '
-                      'Use `gpus=1` now.')
-    if args.gpu_ids is not None:
-        cfg.gpu_ids = args.gpu_ids[0:1]
-        warnings.warn('`--gpu-ids` is deprecated, please use `--gpu-id`. '
-                      'Because we only support single GPU mode in '
-                      'non-distributed training. Use the first GPU '
-                      'in `gpu_ids` now.')
-    if args.gpus is None and args.gpu_ids is None:
-        cfg.gpu_ids = [args.gpu_id]
-
-    if args.autoscale_lr:
-        # apply the linear scaling rule (https://arxiv.org/abs/1706.02677)
-        cfg.optimizer['lr'] = cfg.optimizer['lr'] * len(cfg.gpu_ids) / 8
-
-    # init distributed env first, since logger depends on the dist info.
-    if args.launcher == 'none':
-        distributed = False
-        if len(cfg.gpu_ids) > 1:
-            warnings.warn(
-                f'We treat {cfg.gpu_ids} as gpu-ids, and reset to '
-                f'{cfg.gpu_ids[0:1]} as gpu-ids to avoid potential error in '
-                'non-distribute training time.')
-            cfg.gpu_ids = cfg.gpu_ids[0:1]
     else:
-        distributed = True
-        init_dist(args.launcher, **cfg.dist_params)
-        # re-set gpu_ids with distributed training mode
-        _, world_size = get_dist_info()
-        cfg.gpu_ids = range(world_size)
-
-    # create work_dir
-    mmcv.mkdir_or_exist(osp.abspath(cfg.work_dir))
-    # init the logger before other steps
-    timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    log_file = osp.join(cfg.work_dir, f'{timestamp}.log')
-    logger = get_root_logger(log_file=log_file, log_level=cfg.log_level)
-
-    # init the meta dict to record some important information such as
-    # environment info and seed, which will be logged
-    meta = dict()
-    # log env info
-    env_info_dict = collect_env()
-    env_info = '\n'.join([(f'{k}: {v}') for k, v in env_info_dict.items()])
-    dash_line = '-' * 60 + '\n'
-    logger.info('Environment info:\n' + dash_line + env_info + '\n' +
-                dash_line)
-    meta['env_info'] = env_info
-
-    # log some basic info
-    logger.info(f'Distributed training: {distributed}')
-    logger.info(f'Config:\n{cfg.pretty_text}')
-
-    # set random seeds
-    seed = init_random_seed(args.seed)
-    seed = seed + dist.get_rank() if args.diff_seed else seed
-    logger.info(f'Set random seed to {seed}, '
-                f'deterministic: {args.deterministic}')
-    set_random_seed(seed, deterministic=args.deterministic)
-    cfg.seed = seed
-    meta['seed'] = seed
-
-    model = build_posenet(cfg.model)
-    datasets = [build_dataset(cfg.data.train)]
-
-    if len(cfg.workflow) == 2:
-        val_dataset = copy.deepcopy(cfg.data.val)
-        val_dataset.pipeline = cfg.data.train.pipeline
-        datasets.append(build_dataset(val_dataset))
-
-    if cfg.checkpoint_config is not None:
-        # save mmpose version, config file content
-        # checkpoints as meta data
-        cfg.checkpoint_config.meta = dict(
-            mmpose_version=__version__ + get_git_hash(digits=7),
-            config=cfg.pretty_text,
-        )
-    train_model(
-        model,
-        datasets,
-        cfg,
-        distributed=distributed,
-        validate=(not args.no_validate),
-        timestamp=timestamp,
-        meta=meta)
-
+        # use config file name as default work_dir
+        config_name = os.path.splitext(os.path.basename(args.config))[0]
+        cfg.work_dir = f'work_dirs/{config_name}'
+    
+    os.makedirs(cfg.work_dir, exist_ok=True)
+    
+    # set GPU
+    cfg.gpu_ids = [args.gpu_id]
+    
+    # set mixed precision
+    if args.amp:
+        if 'optim_wrapper' not in cfg:
+            cfg.optim_wrapper = {}
+        cfg.optim_wrapper.type = 'AmpOptimWrapper'
+    
+    # set resume
+    if args.resume:
+        cfg.resume = True
+    
+    # use cfg-options to override settings
+    if args.cfg_options:
+        for opt in args.cfg_options:
+            key, value = opt.split('=', 1)
+            keys = key.split('.')
+            current = cfg
+            for k in keys[:-1]:
+                if k not in current:
+                    current[k] = {}
+                current = current[k]
+            
+            # type conversion
+            try:
+               value = int(value)
+            except ValueError:
+                try:
+                    value = float(value)
+                except ValueError:
+                    if value.lower() in ['true', 'false']:
+                        value = value.lower() == 'true'
+            
+            current[keys[-1]] = value
+    
+    # print final config
+    print("\n最终配置:")
+    print(f"工作目录: {cfg.work_dir}")
+    print(f"使用 GPU: {cfg.gpu_ids}")
+    print(f"训练轮数: {cfg.train_cfg.max_epochs}")
+    print(f"Batch size: {cfg.train_dataloader.batch_size}")
+    
+    # build and run the runner
+    try:
+        runner = Runner.from_cfg(cfg)
+        print("\n开始训练...")
+        runner.train()
+    except KeyboardInterrupt:
+        print("\n训练被用户中断")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\n训练失败: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()

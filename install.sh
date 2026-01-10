@@ -5,18 +5,18 @@ set -e
 # Config
 #####################################
 FPS=30
-DET_CFG=demo/mmdetection_cfg/faster_rcnn_r50_fpn_coco.py
-DET_WEIGHTS=weights/faster_rcnn_r50_fpn_coco.pth
-POSE_CFG=configs/body_2d_keypoint/vitpose/vitpose-b_coco_256x192.py
+DET_CFG="configs/faster-rcnn_r50_fpn_1x_coco.py"                     # 物件檢測 config
+DET_WEIGHTS="weights/faster_rcnn_r50_fpn_coco.pth"                   # 物件檢測 checkpoint
+POSE_CFG="configs/vitpose_custom.py"                                 # 姿態估計 config
 POSE_PRETRAIN=weights/vitpose-b-coco.pth
 TRAIN_CFG=configs/vitpose_custom.py
-WORK_DIR=work_dirs/my_vitpose_coco
+WORK_DIR="work_dirs/vitpose_custom"                                  # 訓練工作目錄
 
 #####################################
 # 0. Prepare dirs
 #####################################
 mkdir -p frames data/dataset/images data/dataset/annotations
-mkdir -p skeleton_vis outputs_finetuned work_dirs outputs/vis
+mkdir -p skeleton_vis outputs_finetuned work_dirs
 
 #####################################
 # 1. Video → Frames
@@ -62,10 +62,10 @@ python scripts/train.py \
 #####################################
 echo "=== [5] Inference finetuned ==="
 python demo/topdown_demo_with_mmdet.py \
-  $DET_CFG \
-  $DET_WEIGHTS \
-  $POSE_CFG \
-  $WORK_DIR/best_AP.pth \
+  --det-config $DET_CFG \
+  --det-checkpoint $DET_WEIGHTS \
+  --pose-config $POSE_CFG \
+  --pose-checkpoint $WORK_DIR/best_AP.pth \
   --input data/dataset/images \
   --output-root outputs_finetuned \
   --save-predictions
